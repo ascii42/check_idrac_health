@@ -123,12 +123,22 @@
 # 1.4.9  2026-06-19  --powerstate <on|off|any>: expected server power state in -eSys;
 #                    default "on" (WARN if not On); "off" for hot/cold-standby servers
 #                    (WARN if not Off); "any" disables the power state check entirely
+# 1.5.6  2026-09-22  SNMP-only fixes: power state OID now handled for both numeric
+#                    (3/4) and textual-enum (powerIsOn/powerIsOff) forms returned by
+#                    snmpget -Oq when Dell iDRAC MIB is installed on the monitor host;
+#                    same fix in eiDRAC section for _pow_label; added OID_POWER_PROBE_READING
+#                    (.600.30.1.6.1.1, amperageProbeTable chassis1/probe1) to get actual
+#                    current system power consumption in SNMP mode; OID_PSU_OUTPUT (.12.1.6)
+#                    on many firmware versions returns the rated max, not the actual draw;
+#                    verbose PSU line now shows "N W cap" instead of "N W/N W cap" when
+#                    output == max; --warn-power/--crit-power threshold check now also
+#                    applied in SNMP mode when amperageProbe reading is available
 
 
 ## VARIABLES
 PROGNAME="${0##*/}"
 PROGPATH="${0%/*}"
-REVISION="1.5.5"
+REVISION="1.5.6"
 JQ="$(which jq)"
 CURL="$(which curl)"
 AWK="$(which awk)"
@@ -178,6 +188,8 @@ OID_PSU_PART=".1.3.6.1.4.1.674.10892.5.4.600.12.1.10"          # powerSupplyPart
 OID_PSU_FW=".1.3.6.1.4.1.674.10892.5.4.600.12.1.12"            # powerSupplyFWVersion
 OID_PSU_MAX_WATT=".1.3.6.1.4.1.674.10892.5.4.600.12.1.13"      # powerSupplyMaximumOutputWattage (tenths of W)
 OID_PSU_INPUT_VOLT=".1.3.6.1.4.1.674.10892.5.4.600.12.1.9"     # powerSupplyInputVoltage (tenths of V)
+# System-level current power consumption (amperageProbeTable chassis1/probe1, tenths of W)
+OID_POWER_PROBE_READING=".1.3.6.1.4.1.674.10892.5.4.600.30.1.6.1.1"
 
 # Battery (batteryTable) - walk
 OID_BAT_STATUS=".1.3.6.1.4.1.674.10892.5.4.600.50.1.5"         # batteryStatus
@@ -1212,8 +1224,8 @@ if [[ -n "${enable_all}" && -z "${disable_sys}" ]] || [[ -n "${enable_sys}" ]]; 
 		_sys_hostname=$(_snmp_get "${OID_SYSNAME}")
 		_snmp_pwr_val=$(_snmp_get "${OID_IDRAC_POWER_STATUS}")
 		case "${_snmp_pwr_val}" in
-			3) _sys_pwr="On" ;;
-			4) _sys_pwr="Off" ;;
+			3|powerIsOn)  _sys_pwr="On" ;;
+			4|powerIsOff) _sys_pwr="Off" ;;
 		esac
 	fi
 
@@ -1866,9 +1878,15 @@ if [[ -n "${enable_all}" && -z "${disable_power}" ]] || [[ -n "${enable_power}" 
 			if [[ "${_stat_val}" -eq 3 ]]; then
 				_psu_ok=$(( _psu_ok + 1 ))
 				if [[ -n "${verbose}" ]]; then
-					_pinfo="${_pwatts_w} W"
-					[[ "${_pmax_w}" -gt 0 ]] 2>/dev/null && _pinfo+="/${_pmax_w} W cap"
-					_pinfo+=" (ok)"
+					# OID_PSU_OUTPUT may return the rated max (not actual draw) on some firmware;
+					# show as current only when it differs from the rated max
+					if [[ "${_pmax_w}" -gt 0 && "${_pwatts_w}" -ne "${_pmax_w}" ]] 2>/dev/null; then
+						_pinfo="${_pwatts_w} W/${_pmax_w} W cap (ok)"
+					elif [[ "${_pmax_w}" -gt 0 ]] 2>/dev/null; then
+						_pinfo="${_pmax_w} W cap (ok)"
+					else
+						_pinfo="${_pwatts_w} W (ok)"
+					fi
 					[[ "${_pvolt_v}" -gt 0 ]] 2>/dev/null && _pinfo+=", ${_pvolt_v}V in"
 					[[ -n "${_pfw}" ]]     && _pinfo+=", FW: ${_pfw}"
 					[[ -n "${_pserial}" ]] && _pinfo+=", S/N: ${_pserial}"
@@ -1916,6 +1934,22 @@ if [[ -n "${enable_all}" && -z "${disable_power}" ]] || [[ -n "${enable_power}" 
 		if [[ "${_psu_total}" -eq 0 ]]; then
 			_sect_detail+="${status_unkn} - Power: SNMP walk returned no PSU data (check community string / MIB support)\n"
 			[[ "${_exit_code}" -lt 3 ]] && { _exit_code=3; _state_label="${status_unkn}"; }
+		fi
+		# Read actual current system power consumption from amperageProbeTable (chassis1/probe1)
+		_probe_raw=$(_snmp_get "${OID_POWER_PROBE_READING}")
+		[[ "${_probe_raw}" -gt 0 ]] 2>/dev/null && _sys_power_w=$(( _probe_raw / 10 ))
+		if [[ "${_sys_power_w}" -gt 0 ]] 2>/dev/null; then
+			if [[ "${warn_power}" -gt 0 && "${_sys_power_w}" -ge "${warn_power}" ]]; then
+				_sect_detail+="${status_warn} - System power consumption: ${_sys_power_w} W (threshold: ${warn_power} W)\n"
+				idrac_problem_output+="${status_warn} - System power consumption: ${_sys_power_w} W\n"
+				_set_state 1
+			elif [[ "${crit_power}" -gt 0 && "${_sys_power_w}" -ge "${crit_power}" ]]; then
+				_sect_detail+="${status_crit} - System power consumption: ${_sys_power_w} W (threshold: ${crit_power} W)\n"
+				idrac_problem_output+="${status_crit} - System power consumption: ${_sys_power_w} W\n"
+				_set_state 2
+			else
+				[[ -n "${verbose}" ]] && _sect_detail+="${status_ok} -   System power consumption: ${_sys_power_w} W\n"
+			fi
 		fi
 	fi
 
@@ -2707,7 +2741,7 @@ if [[ -n "${enable_all}" && -z "${disable_idrac}" ]] || [[ -n "${enable_idrac}" 
 		fi
 
 		[[ -n "${verbose}" ]] && idrac_output+="iDRAC Controller:\n---------------------------------------\n"
-		_pow_label=$( [[ "${_pow_stat}" -eq 3 ]] && echo "on" || echo "off" )
+		[[ "${_pow_stat}" == "3" || "${_pow_stat}" == "powerIsOn" ]] && _pow_label="on" || _pow_label="off"
 		if [[ "${_global_stat}" -eq 3 ]]; then
 			idrac_output+="${status_ok} - iDRAC: global status ok, power: ${_pow_label}\n"
 		elif [[ "${_global_stat}" -eq 4 ]]; then
