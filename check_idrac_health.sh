@@ -139,16 +139,19 @@
 #                    --warn-power/--crit-power threshold check now applied in SNMP mode
 # 1.5.7  2026-09-22  Fix power state enum inversion: Dell MIB systemStatePowerState is
 #                    3=powerIsOff, 4=powerIsOn (was coded inverted); server returning 4
-#                    (on) was displayed as "Off"; fix applied in eSys and eiDRAC sections;
-#                    fix power consumption OID: amperageProbeTable (.600.30) does not
-#                    carry system wattage; switch to powerUsageTable (.600.60) column 8
-#                    (powerUsageInstantaneousWatts, in Watts, no /10 scaling needed)
+#                    (on) was displayed as "Off"; fix applied in eSys and eiDRAC sections
+# 1.5.8  2026-09-22  Fix power consumption probe selection: previous code walked
+#                    amperageProbeType to find type 23 (ACWatts) but that matched the
+#                    wrong probe on multi-PSU systems; switch to walking
+#                    amperageProbeLocationName (.600.30.1.8.1) and matching "System
+#                    Board Pwr Consumption" by name (same approach as reference plugin);
+#                    probe index from NR matches existing temp/fan/battery pattern
 
 
 ## VARIABLES
 PROGNAME="${0##*/}"
 PROGPATH="${0%/*}"
-REVISION="1.5.7"
+REVISION="1.5.8"
 JQ="$(which jq)"
 CURL="$(which curl)"
 AWK="$(which awk)"
@@ -198,8 +201,9 @@ OID_PSU_PART=".1.3.6.1.4.1.674.10892.5.4.600.12.1.10"          # powerSupplyPart
 OID_PSU_FW=".1.3.6.1.4.1.674.10892.5.4.600.12.1.12"            # powerSupplyFWVersion
 OID_PSU_MAX_WATT=".1.3.6.1.4.1.674.10892.5.4.600.12.1.13"      # powerSupplyMaximumOutputWattage (tenths of W)
 OID_PSU_INPUT_VOLT=".1.3.6.1.4.1.674.10892.5.4.600.12.1.9"     # powerSupplyInputVoltage (tenths of V)
-# powerUsageTable (chassis 1): instantaneous system power consumption in Watts
-OID_POWER_USAGE_INST=".1.3.6.1.4.1.674.10892.5.4.600.60.1.8.1"    # powerUsageInstantaneousWatts (chassis 1, instance 1)
+# amperageProbeTable (chassis 1): find System Board Pwr Consumption by location name
+OID_POWER_PROBE_NAME=".1.3.6.1.4.1.674.10892.5.4.600.30.1.8.1"    # amperageProbeLocationName (chassis 1)
+OID_POWER_PROBE_READING=".1.3.6.1.4.1.674.10892.5.4.600.30.1.6.1"  # amperageProbeCurrentReading (chassis 1, append .N), tenths of W
 
 # Battery (batteryTable) - walk
 OID_BAT_STATUS=".1.3.6.1.4.1.674.10892.5.4.600.50.1.5"         # batteryStatus
@@ -1946,9 +1950,15 @@ if [[ -n "${enable_all}" && -z "${disable_power}" ]] || [[ -n "${enable_power}" 
 			_sect_detail+="${status_unkn} - Power: SNMP walk returned no PSU data (check community string / MIB support)\n"
 			[[ "${_exit_code}" -lt 3 ]] && { _exit_code=3; _state_label="${status_unkn}"; }
 		fi
-		# Read instantaneous system power from powerUsageTable (.600.60.1.8.1); value is in Watts
-		_probe_raw=$(_snmp_walk "${OID_POWER_USAGE_INST}" 2>/dev/null | "${AWK}" 'NR==1{print $1; exit}')
-		[[ "${_probe_raw}" =~ ^[0-9]+$ && "${_probe_raw}" -gt 0 ]] && _sys_power_w="${_probe_raw}"
+		# Walk amperageProbeLocationName to find the System Board Pwr Consumption probe;
+		# NR in the walk matches the row index used for the reading OID (same pattern as temp/fan)
+		_pidx=$(_snmp_walk "${OID_POWER_PROBE_NAME}" 2>/dev/null | "${AWK}" '
+			/[Ss]ystem.*[Bb]oard.*[Pp]wr|[Ss]ystem.*[Bb]oard.*[Cc]onsump/ { print NR; exit }
+		')
+		if [[ "${_pidx}" =~ ^[0-9]+$ ]]; then
+			_probe_raw=$(_snmp_get "${OID_POWER_PROBE_READING}.${_pidx}")
+			[[ "${_probe_raw}" =~ ^[0-9]+$ && "${_probe_raw}" -gt 0 ]] && _sys_power_w=$(( _probe_raw / 10 ))
+		fi
 		if [[ "${_sys_power_w}" -gt 0 ]] 2>/dev/null; then
 			if [[ "${warn_power}" -gt 0 && "${_sys_power_w}" -ge "${warn_power}" ]]; then
 				_sect_detail+="${status_warn} - System power consumption: ${_sys_power_w} W (threshold: ${warn_power} W)\n"
