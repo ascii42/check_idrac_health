@@ -149,7 +149,10 @@
 # 1.5.9  2026-09-23  Fix power consumption unit: System Board Pwr Consumption probe is
 #                    type 26 (not ACWatts/23); its amperageProbeCurrentReading value is
 #                    in whole Watts; removing the /10 division that was correct for
-#                    type-23 probes but wrong here (484 raw -> 484 W, not 48 W)
+#                    type-23 probes but wrong here (484 raw -> 484 W, not 48 W);
+#                    SNMP mode summary now includes per-PSU watt breakdown when firmware
+#                    returns actual draw (output differs from rated max):
+#                    "System Power Usage: 484 W (PS1: 242 W, PS2: 242 W)"
 
 
 ## VARIABLES
@@ -1725,6 +1728,7 @@ if [[ -n "${enable_all}" && -z "${disable_power}" ]] || [[ -n "${enable_power}" 
 	_psu_warn=0
 	_psu_crit=0
 	_sys_power_w=0
+	_psu_watts_list=""
 
 	if [[ -n "${_ipmi_avail}" && ( -n "${ipmi_only}" || -z "${idrac_user}" ) ]]; then
 		while IFS= read -r _line; do
@@ -1893,6 +1897,11 @@ if [[ -n "${enable_all}" && -z "${disable_power}" ]] || [[ -n "${enable_power}" 
 			_ppart=$(_snmp_get "${OID_PSU_PART}.1.${_idx}")
 			[[ "${_pserial}" =~ ^[0-9]{1,2}$ ]] && _pserial=""
 			[[ "${_ppart}" =~ ^[0-9]{1,2}$ ]]   && _ppart=""
+			# Accumulate per-PSU watts for summary only when firmware returns actual draw
+			# (not just rated capacity - indicated by output differing from max wattage)
+			if [[ "${_pwatts_w}" -gt 0 && "${_pmax_w}" -gt 0 && "${_pwatts_w}" -ne "${_pmax_w}" ]] 2>/dev/null; then
+				_psu_watts_list+="${_psu_watts_list:+, }${_pname}: ${_pwatts_w} W"
+			fi
 			_psu_total=$(( _psu_total + 1 ))
 			if [[ "${_stat_val}" -eq 3 ]]; then
 				_psu_ok=$(( _psu_ok + 1 ))
@@ -1985,7 +1994,10 @@ if [[ -n "${enable_all}" && -z "${disable_power}" ]] || [[ -n "${enable_power}" 
 		idrac_output+="${status_warn} - Power: ${_psu_warn}/${_psu_total} PSU(s) warning\n"
 	else
 		_pow_summary="${_psu_ok}/${_psu_total} PSU(s) ok"
-		[[ "${_sys_power_w}" != "0" ]] && _pow_summary+=", System Power Usage: ${_sys_power_w} W"
+		if [[ "${_sys_power_w}" != "0" ]]; then
+			_pow_summary+=", System Power Usage: ${_sys_power_w} W"
+			[[ -n "${_psu_watts_list}" ]] && _pow_summary+=" (${_psu_watts_list})"
+		fi
 		idrac_output+="${status_ok} - Power: ${_pow_summary}\n"
 	fi
 	idrac_output+="${_sect_detail}"
