@@ -146,12 +146,16 @@
 #                    amperageProbeLocationName (.600.30.1.8.1) and matching "System
 #                    Board Pwr Consumption" by name (same approach as reference plugin);
 #                    probe index from NR matches existing temp/fan/battery pattern
+# 1.5.9  2026-09-23  Fix power consumption unit: System Board Pwr Consumption probe is
+#                    type 26 (not ACWatts/23); its amperageProbeCurrentReading value is
+#                    in whole Watts; removing the /10 division that was correct for
+#                    type-23 probes but wrong here (484 raw -> 484 W, not 48 W)
 
 
 ## VARIABLES
 PROGNAME="${0##*/}"
 PROGPATH="${0%/*}"
-REVISION="1.5.8"
+REVISION="1.5.9"
 JQ="$(which jq)"
 CURL="$(which curl)"
 AWK="$(which awk)"
@@ -203,7 +207,7 @@ OID_PSU_MAX_WATT=".1.3.6.1.4.1.674.10892.5.4.600.12.1.13"      # powerSupplyMaxi
 OID_PSU_INPUT_VOLT=".1.3.6.1.4.1.674.10892.5.4.600.12.1.9"     # powerSupplyInputVoltage (tenths of V)
 # amperageProbeTable (chassis 1): find System Board Pwr Consumption by location name
 OID_POWER_PROBE_NAME=".1.3.6.1.4.1.674.10892.5.4.600.30.1.8.1"    # amperageProbeLocationName (chassis 1)
-OID_POWER_PROBE_READING=".1.3.6.1.4.1.674.10892.5.4.600.30.1.6.1"  # amperageProbeCurrentReading (chassis 1, append .N), tenths of W
+OID_POWER_PROBE_READING=".1.3.6.1.4.1.674.10892.5.4.600.30.1.6.1"  # amperageProbeCurrentReading (chassis 1, append .N); type-26 probe returns whole W
 
 # Battery (batteryTable) - walk
 OID_BAT_STATUS=".1.3.6.1.4.1.674.10892.5.4.600.50.1.5"         # batteryStatus
@@ -1957,7 +1961,7 @@ if [[ -n "${enable_all}" && -z "${disable_power}" ]] || [[ -n "${enable_power}" 
 		')
 		if [[ "${_pidx}" =~ ^[0-9]+$ ]]; then
 			_probe_raw=$(_snmp_get "${OID_POWER_PROBE_READING}.${_pidx}")
-			[[ "${_probe_raw}" =~ ^[0-9]+$ && "${_probe_raw}" -gt 0 ]] && _sys_power_w=$(( _probe_raw / 10 ))
+			[[ "${_probe_raw}" =~ ^[0-9]+$ && "${_probe_raw}" -gt 0 ]] && _sys_power_w="${_probe_raw}"
 		fi
 		if [[ "${_sys_power_w}" -gt 0 ]] 2>/dev/null; then
 			if [[ "${warn_power}" -gt 0 && "${_sys_power_w}" -ge "${warn_power}" ]]; then
