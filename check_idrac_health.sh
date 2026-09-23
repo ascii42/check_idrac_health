@@ -207,7 +207,7 @@ OID_PSU_SERIAL=".1.3.6.1.4.1.674.10892.5.4.600.12.1.11"        # powerSupplySeri
 OID_PSU_PART=".1.3.6.1.4.1.674.10892.5.4.600.12.1.10"          # powerSupplyPartNumberName
 OID_PSU_FW=".1.3.6.1.4.1.674.10892.5.4.600.12.1.12"            # powerSupplyFWVersion
 OID_PSU_MAX_WATT=".1.3.6.1.4.1.674.10892.5.4.600.12.1.13"      # powerSupplyMaximumOutputWattage (tenths of W)
-OID_PSU_INPUT_VOLT=".1.3.6.1.4.1.674.10892.5.4.600.12.1.9"     # powerSupplyInputVoltage (V; firmware returns whole Volts, not tenths)
+OID_PSU_INPUT_VOLT=".1.3.6.1.4.1.674.10892.5.4.600.12.1.16"    # powerSupplyCurrentInputVoltage (V)
 # amperageProbeTable (chassis 1): find System Board Pwr Consumption by location name
 OID_POWER_PROBE_NAME=".1.3.6.1.4.1.674.10892.5.4.600.30.1.8.1"    # amperageProbeLocationName (chassis 1)
 OID_POWER_PROBE_READING=".1.3.6.1.4.1.674.10892.5.4.600.30.1.6.1"  # amperageProbeCurrentReading (chassis 1, append .N); type-26 probe returns whole W
