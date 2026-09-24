@@ -330,12 +330,12 @@ Options:
                                  hot/cold-standby servers, "any" to skip the check
  -eThermal,  --enable-thermal
     Temperature probes (hardware thresholds from iDRAC)
-    --warn-temp <C>            WARNING threshold in Celsius (default: 75)
+    --warn-temp <C>            WARNING threshold in Celsius (default: 78)
     --crit-temp <C>            CRITICAL threshold in Celsius (default: 85)
     --warn-ambient-temp <C>    WARN for Inlet/Ambient/Exhaust sensors (default: 40)
     --crit-ambient-temp <C>    CRIT for Inlet/Ambient/Exhaust sensors (default: 45)
-    --warn-sysboard-temp <C>   WARN for System Board sensors (default: 50)
-    --crit-sysboard-temp <C>   CRIT for System Board sensors (default: 55)
+    --warn-sysboard-temp <C>   WARN for System Board sensors (default: 55)
+    --crit-sysboard-temp <C>   CRIT for System Board sensors (default: 58)
     --blacklist-temp <list>    Comma-separated sensor names to skip
  -eFans,     --enable-fans
     Fan speeds and fan health status
@@ -816,12 +816,12 @@ fi
 # Defaults
 [[ -z "${rest_port}" ]]          && rest_port=443
 [[ -z "${snmp_port}" ]]          && snmp_port=161
-[[ -z "${warn_temp}" ]]          && warn_temp=75
+[[ -z "${warn_temp}" ]]          && warn_temp=78
 [[ -z "${crit_temp}" ]]          && crit_temp=85
 [[ -z "${warn_ambient_temp}" ]]  && warn_ambient_temp=40
 [[ -z "${crit_ambient_temp}" ]]  && crit_ambient_temp=45
-[[ -z "${warn_sysboard_temp}" ]] && warn_sysboard_temp=50
-[[ -z "${crit_sysboard_temp}" ]] && crit_sysboard_temp=55
+[[ -z "${warn_sysboard_temp}" ]] && warn_sysboard_temp=55
+[[ -z "${crit_sysboard_temp}" ]] && crit_sysboard_temp=57
 [[ -z "${warn_disk_life}" ]]     && warn_disk_life=25
 [[ -z "${crit_disk_life}" ]]     && crit_disk_life=15
 [[ -z "${warn_power}" ]]         && warn_power=-1
