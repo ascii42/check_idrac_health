@@ -95,8 +95,6 @@ sudo emerge net-misc/curl app-misc/jq sys-apps/gawk
 | Parameter | Description |
 |-----------|-------------|
 | `-H, --host <IP\|hostname>` | iDRAC IP address or hostname |
-| `-U, --username <user>` | iDRAC username (default: `root`) |
-| `-P, --password <pass>` | iDRAC password |
 
 ### Enable Flags (opt-in)
 
