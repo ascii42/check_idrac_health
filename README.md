@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Shell Script](https://img.shields.io/badge/Shell-Bash-green.svg)](https://www.gnu.org/software/bash/)
 [![Monitoring](https://img.shields.io/badge/Monitoring-Icinga%2FNagios-blue.svg)](https://icinga.com/)
-[![Version](https://img.shields.io/badge/version-1.5.8-orange.svg)](check_idrac_health.sh)
+[![Version](https://img.shields.io/badge/version-1.5.9-orange.svg)](check_idrac_health.sh)
 
 A comprehensive Bash-based monitoring plugin for Dell iDRAC, compatible with Icinga and Nagios monitoring systems. This plugin monitors hardware health, storage, power, thermals, firmware, certificates, and more — directly via the Redfish REST API. SNMP v2c/v3 and IPMI are available as supplemental or standalone transports.
 
