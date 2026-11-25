@@ -153,12 +153,13 @@
 #                    SNMP mode summary now includes per-PSU watt breakdown when firmware
 #                    returns actual draw (output differs from rated max):
 #                    "System Power Usage: 484 W (PS1: 242 W, PS2: 242 W)"
+# 1.6.0  2026-11-25  Change some exit codes 
 
 
 ## VARIABLES
 PROGNAME="${0##*/}"
 PROGPATH="${0%/*}"
-REVISION="1.5.9"
+REVISION="1.6.0"
 JQ="$(which jq)"
 CURL="$(which curl)"
 AWK="$(which awk)"
@@ -261,7 +262,7 @@ OID_NIC_SPEED=".1.3.6.1.4.1.674.10892.5.4.1100.90.1.15"        # networkDeviceCu
 exit_unknown() {
 	echo "Unknown parameter: ${1}"
 	print_usage
-	exit 4
+	exit 3
 }
 
 
@@ -783,9 +784,9 @@ while [[ -n "${1}" ]]; do
 done
 
 # Mandatory parameters / dependency checks
-[[ -z "${JQ}" ]]   && { echo "${PROGNAME}: jq is required - please install it";   exit 4; }
-[[ -z "${CURL}" ]] && { echo "${PROGNAME}: curl is required - please install it"; exit 4; }
-[[ -z "${AWK}" ]]  && { echo "${PROGNAME}: awk is required - please install it";  exit 4; }
+[[ -z "${JQ}" ]]   && { echo "${PROGNAME}: jq is required - please install it";   exit 3; }
+[[ -z "${CURL}" ]] && { echo "${PROGNAME}: curl is required - please install it"; exit 3; }
+[[ -z "${AWK}" ]]  && { echo "${PROGNAME}: awk is required - please install it";  exit 3; }
 [[ -z "${idrac_host}" ]] && exit_unknown "iDRAC hostname or IP (-H) is required!"
 if [[ -z "${ipmi_only}" ]]; then
 	[[ -z "${idrac_user}" && -z "${snmp_community}" && -z "${snmp_user}" ]] && \
@@ -886,11 +887,11 @@ _psuw_perf_crit=$(_build_perf_threshold "${crit_power_psu_lo}" "${crit_power_psu
 if [[ -n "${snmp_user}" ]]; then
 	if [[ -n "${snmp_auth_pass}" && ${#snmp_auth_pass} -lt 8 ]]; then
 		echo "[UNKNOWN] - SNMPv3 auth passphrase too short (${#snmp_auth_pass} chars) - USM requires minimum 8 characters"
-		exit 4
+		exit 3
 	fi
 	if [[ -n "${snmp_priv_pass}" && ${#snmp_priv_pass} -lt 8 ]]; then
 		echo "[UNKNOWN] - SNMPv3 priv passphrase too short (${#snmp_priv_pass} chars) - USM requires minimum 8 characters"
-		exit 4
+		exit 3
 	fi
 fi
 
@@ -1020,7 +1021,7 @@ elif [[ -n "${ipmi_only}" || -n "${_snmp_avail}" ]]; then
 	idrac_api_get() { echo "{}"; }
 else
 	echo "[UNKNOWN] - No valid authentication method available"
-	exit 4
+	exit 3
 fi
 
 # ---------------------------------------------------------------------------
@@ -1194,7 +1195,7 @@ if [[ -z "${ipmi_only}" && -n "${idrac_user}" ]]; then
 	_probe=$(idrac_api_get "" 2>/dev/null)
 	if [[ -z "${_probe}" ]] || ! echo "${_probe}" | "${JQ}" -e '.RedfishVersion' >/dev/null 2>&1; then
 		echo "[UNKNOWN] - Cannot reach iDRAC Redfish API at ${IDRAC_API} (check -H, -U, -P, --rest-port)"
-		exit 4
+		exit 3
 	fi
 	_rf_ver=$(echo "${_probe}" | "${JQ}" -r '.RedfishVersion // "unknown"')
 fi
